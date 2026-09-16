@@ -174,6 +174,7 @@ impl EndpointServerWelcome {
                 HEALTH_CHECK_CAPABILITY.into(),
                 AGENT_VIEW_PROJECTION_CAPABILITY.into(),
                 AGENT_COMPLETIONS_CAPABILITY.into(),
+                super::pane_dock::CAPABILITY.into(),
             ],
             error: None,
         }
@@ -385,6 +386,7 @@ mod tests {
                 HEALTH_CHECK_CAPABILITY.to_string(),
                 AGENT_VIEW_PROJECTION_CAPABILITY.to_string(),
                 AGENT_COMPLETIONS_CAPABILITY.to_string(),
+                super::super::pane_dock::CAPABILITY.to_string(),
             ]
         );
     }

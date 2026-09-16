@@ -283,6 +283,7 @@ pub(super) enum SurfaceRenderDeferred {
     Changed,
 }
 
+#[cfg(test)]
 pub(super) fn render_pane_surface(
     app: &mut app::App,
     target: Option<crate::ui::TabSurfaceTarget>,
@@ -293,13 +294,47 @@ pub(super) fn render_pane_surface(
     graphics_delivery: &crate::kitty_graphics::surface::DeliveryCache,
     client_id: u64,
 ) -> Result<RenderedPaneSurface, SurfaceRenderDeferred> {
-    let layout = crate::ui::compute_tab_surface_for(
+    render_pane_surface_with_dock(
+        app,
+        target,
+        area,
+        resize_panes,
+        show_popup,
+        cell_size,
+        graphics_delivery,
+        client_id,
+        &[],
+        None,
+        None,
+    )
+}
+
+pub(super) fn render_pane_surface_with_dock(
+    app: &mut app::App,
+    target: Option<crate::ui::TabSurfaceTarget>,
+    area: Rect,
+    resize_panes: bool,
+    show_popup: bool,
+    cell_size: crate::kitty_graphics::HostCellSize,
+    graphics_delivery: &crate::kitty_graphics::surface::DeliveryCache,
+    client_id: u64,
+    docked: &[crate::layout::PaneId],
+    focus: Option<crate::layout::PaneId>,
+    persistent: Option<(
+        crate::ui::TabSurfaceTarget,
+        protocol::persistent_area::PersistentAreaSettings,
+    )>,
+) -> Result<RenderedPaneSurface, SurfaceRenderDeferred> {
+    let layout = crate::ui::pane_dock::compute_docked_surface(
         &app.state,
         &app.terminal_runtimes,
         target,
         area,
         resize_panes,
         cell_size,
+        docked,
+        focus,
+        persistent,
     );
     let mut content_revisions_before = std::collections::HashMap::new();
     if let Some(target) = target {

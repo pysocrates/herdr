@@ -1,6 +1,7 @@
 use ratatui::layout::Rect;
 
 mod onboarding;
+pub(crate) mod pane_dock;
 mod panes;
 mod release_notes;
 mod scrollbar;

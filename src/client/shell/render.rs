@@ -231,6 +231,7 @@ pub(super) fn render_mode_bar(
 
 pub(super) struct ShellRenderState<'a> {
     pub(super) machine_diagnostics: &'a super::machine_diagnostics::MachineDiagnostics,
+    pub hidden_tab_id: Option<&'a str>,
     pub(super) endpoints: &'a [ClientShellEndpoint],
     pub(super) active_endpoint_id: &'a ClientEndpointId,
     pub(super) collapsed_endpoints: &'a HashSet<ClientEndpointId>,
@@ -318,6 +319,7 @@ pub(super) fn render_shell(
             state.tab_scroll,
             state.reveal_focused_tab,
             state.tab_drag_insert_index,
+            state.hidden_tab_id,
             &mut hits,
         );
     }

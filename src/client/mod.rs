@@ -479,6 +479,16 @@ async fn run_client_loop(
         shell.set_host_erase_byte(crate::platform::terminal_erase_byte());
         shell.set_graphics_cell_size(initial_cell_width_px, initial_cell_height_px);
         shell.set_endpoint_catalog(&endpoint_catalog.ssh);
+        shell.set_sticky_supported(
+            &endpoint::ClientEndpointId::Local,
+            initial
+                .as_ref()
+                .and_then(|(_, handshake)| handshake.endpoint_capabilities.as_ref())
+                .is_some_and(|caps| {
+                    caps.iter()
+                        .any(|cap| cap == protocol::pane_dock::CAPABILITY)
+                }),
+        );
         shell.set_endpoint_methods_for(
             &endpoint::ClientEndpointId::Local,
             initial
@@ -1327,6 +1337,10 @@ async fn run_client_loop(
                     );
                     let frame = state.shell.as_mut().and_then(|shell| {
                         shell.set_endpoint_methods_for(&endpoint_id, Some(negotiation.methods()));
+                        shell.set_sticky_supported(
+                            &endpoint_id,
+                            negotiation.supports_capability(protocol::pane_dock::CAPABILITY),
+                        );
                         shell.set_endpoint_agent_view_projection_supported(
                             &endpoint_id,
                             agent_view_projection_supported,

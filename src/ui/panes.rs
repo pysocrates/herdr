@@ -287,7 +287,7 @@ fn runtime_for_tab_pane<'a>(
         .map(|runtime| (terminal_id, runtime))
 }
 
-fn stable_scrollbar_gutter(
+pub(super) fn stable_scrollbar_gutter(
     rt: &TerminalRuntime,
     pane_inner: Rect,
     pane_scrollbars: bool,

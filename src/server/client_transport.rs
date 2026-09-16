@@ -472,6 +472,10 @@ pub(crate) enum ServerEvent {
         pixel_mouse: bool,
     },
     /// A client-owned shell recomputed its pane viewport.
+    ClientPaneDock {
+        client_id: u64,
+        dock: crate::protocol::pane_dock::PaneDock,
+    },
     ClientShellResize {
         client_id: u64,
         surface_cols: u16,
@@ -1323,6 +1327,19 @@ fn client_read_loop_with_endpoint_controls(
                     client_id,
                     token: data,
                 }
+            }
+            ClientMessage::EndpointControl { kind, data }
+                if kind == crate::protocol::pane_dock::KIND =>
+            {
+                if data.len() > 16 * 1024 { continue; }
+                let Ok(dock) = serde_json::from_str::<crate::protocol::pane_dock::PaneDock>(&data)
+                else {
+                    continue;
+                };
+                if dock.pane_ids.len() > crate::protocol::pane_dock::MAX_PANES {
+                    continue;
+                }
+                ServerEvent::ClientPaneDock { client_id, dock }
             }
             ClientMessage::EndpointControl { kind, data } => {
                 let Some(response) = crate::server::client_endpoint_control::response(&kind, data)

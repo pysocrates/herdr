@@ -151,12 +151,23 @@ impl HeadlessServer {
             .filter(|client| client.is_shell_client())
         {
             let location = client.shell_location.get_or_insert_with(|| {
+                // A location and its sticky presentation are connection-local.
                 crate::server::clients::ClientShellLocation {
                     focused_workspace_id: topology.focused_workspace_id.clone(),
                     active_tab_ids: topology.active_tab_ids.clone(),
                 }
             });
             location.reconcile(&topology);
+            client
+                .pane_dock
+                .pane_ids
+                .retain(|id| self.app.parse_pane_id(id).is_some());
+            if client.pane_dock.focus.as_ref().is_some_and(|(tab, pane)| {
+                location.focused_tab_id() != Some(tab.as_str())
+                    || !client.pane_dock.pane_ids.contains(pane)
+            }) {
+                client.pane_dock.focus = None;
+            }
         }
     }
 
@@ -197,6 +208,7 @@ impl HeadlessServer {
             return false;
         };
         location.focus_tab(workspace_id, tab_id.to_owned());
+        client.pane_dock.focus = None;
         true
     }
 
@@ -499,6 +511,9 @@ impl HeadlessServer {
         if target.workspace_index != workspace_index {
             return false;
         }
+        if self.docked_panes(client_id).contains(&pane_id) {
+            return true;
+        }
         let Some(tab) = self
             .app
             .state
@@ -595,6 +610,20 @@ impl HeadlessServer {
                 area,
                 true,
                 cell_size,
+            );
+        }
+        let docked = self.docked_panes(client_id);
+        if !docked.is_empty() && self.shell_target_for_client(client_id) == Some(target) {
+            crate::ui::pane_dock::compute_docked_surface(
+                &self.app.state,
+                &self.app.terminal_runtimes,
+                Some(target),
+                area,
+                true,
+                cell_size,
+                &docked,
+                self.dock_focus(client_id),
+                self.persistent_target(client_id),
             );
         }
         if self

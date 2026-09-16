@@ -12,6 +12,16 @@ pub(super) fn dispatch_client_shell_actions(
     let mut repaint = false;
     for action in actions {
         match action {
+            shell::ClientShellAction::PaneDock { endpoint_id, dock } => {
+                if endpoints.active_id() == &endpoint_id && endpoints.active_surface_available() {
+                    if let Ok(data) = serde_json::to_string(&dock) {
+                        endpoints.send_to(&endpoint_id, &ClientMessage::EndpointControl {
+                            kind: crate::protocol::pane_dock::KIND.into(), data,
+                        });
+                        repaint = true;
+                    }
+                }
+            }
             shell::ClientShellAction::Endpoint {
                 endpoint_id,
                 boot_id,

@@ -262,6 +262,34 @@ pub(super) fn render_pane_surface(
     graphics_delivery: &crate::kitty_graphics::surface::DeliveryCache,
     client_id: u64,
 ) -> RenderedPaneSurface {
+    render_pane_surface_with_dock(
+        app,
+        target,
+        area,
+        resize_panes,
+        show_popup,
+        cell_size,
+        graphics_delivery,
+        client_id,
+        &[],
+        None,
+        None,
+    )
+}
+
+pub(super) fn render_pane_surface_with_dock(
+    app: &mut app::App,
+    target: Option<crate::ui::TabSurfaceTarget>,
+    area: Rect,
+    resize_panes: bool,
+    show_popup: bool,
+    cell_size: crate::kitty_graphics::HostCellSize,
+    graphics_delivery: &crate::kitty_graphics::surface::DeliveryCache,
+    client_id: u64,
+    docked: &[crate::layout::PaneId],
+    focus: Option<crate::layout::PaneId>,
+    persistent: Option<(crate::ui::TabSurfaceTarget, protocol::persistent_area::PersistentAreaSettings)>,
+) -> RenderedPaneSurface {
     let content_revisions_before = target
         .and_then(|target| {
             let workspace = app.state.workspaces.get(target.workspace_index)?;
@@ -270,6 +298,7 @@ pub(super) fn render_pane_surface(
                 tab.layout
                     .pane_ids()
                     .into_iter()
+                    .chain(docked.iter().copied())
                     .filter_map(|pane_id| {
                         app.state
                             .runtime_for_pane_in_workspace(
@@ -283,7 +312,7 @@ pub(super) fn render_pane_surface(
             )
         })
         .unwrap_or_default();
-    let (buffer, cursor, hyperlinks, layout) =
+    let (buffer, cursor, hyperlinks, layout) = if docked.is_empty() && focus.is_none() {
         crate::server::render_stream::render_tab_surface_virtual(
             &app.state,
             &app.terminal_runtimes,
@@ -291,7 +320,26 @@ pub(super) fn render_pane_surface(
             area,
             resize_panes,
             cell_size,
+        )
+    } else {
+        let layout = crate::ui::pane_dock::compute_docked_surface(
+            &app.state,
+            &app.terminal_runtimes,
+            target,
+            area,
+            resize_panes,
+            cell_size,
+            docked,
+            focus,
+            persistent,
         );
+        crate::server::render_stream::render_tab_layout_virtual(
+            &app.state,
+            &app.terminal_runtimes,
+            area,
+            layout,
+        )
+    };
     let panes = target
         .map(|target| {
             let workspace_index = target.workspace_index;

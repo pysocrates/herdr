@@ -55,6 +55,7 @@ impl ClientShellState {
                     == Some(ClientEndpointStatus::Online)
         });
         let mut render_state = render::ShellRenderState {
+            hidden_tab_id: None,
             endpoints: &self.endpoints,
             active_endpoint_id: &self.active_endpoint_id,
             collapsed_endpoints: &self.collapsed_endpoints,
@@ -191,12 +192,20 @@ impl ClientShellState {
             _ => (None, None),
         };
         let mut buffer = Buffer::empty(Rect::new(0, 0, cols, rows));
+        let persistent_area = self.persistent_area().cloned();
+        let persistent_enabled = persistent_area.as_ref().is_some_and(|area| area.enabled);
+        let persistent_supported = self.sticky_supported.contains(&self.active_endpoint_id);
+        let mut chrome_layout = layout;
+        if persistent_supported && chrome_layout.tab_bar.width >= 12 {
+            chrome_layout.tab_bar.width = chrome_layout.tab_bar.width.saturating_sub(persistent_chrome::CONTROL_WIDTH);
+        }
         self.hits = render::render_shell(
             &mut buffer,
-            layout,
+            chrome_layout,
             snapshot,
             &self.config,
             render::ShellRenderState {
+                hidden_tab_id: persistent_area.as_ref().filter(|area| area.enabled).map(|area| area.tab_id.as_str()),
                 endpoints: &self.endpoints,
                 active_endpoint_id: &self.active_endpoint_id,
                 collapsed_endpoints: &self.collapsed_endpoints,
@@ -220,6 +229,10 @@ impl ClientShellState {
                 workspace_drop_indicator_row,
             },
         );
+        self.persistent_hits = persistent_chrome::render_controls(&mut buffer, layout.tab_bar, persistent_enabled, persistent_supported, &self.config.palette);
+        if let Some(area) = persistent_area.as_ref().filter(|area| area.enabled) {
+            self.persistent_hits.divider = area.settings.layout(layout.pane_surface).divider;
+        }
         self.hits.panes = surface
             .panes
             .iter()
@@ -329,6 +342,14 @@ impl ClientShellState {
             frame.cells[start..start + usize::from(bar.width)].to_vec()
         });
         blit_pane_surface(&mut frame, &surface.frame, layout.pane_surface);
+        let divider = self.persistent_hits.divider;
+        for y in divider.y..divider.bottom() {
+            for x in divider.x..divider.right() {
+                if let Some(cell) = frame.cells.get_mut(usize::from(y) * usize::from(frame.width) + usize::from(x)) {
+                    cell.symbol = if divider.width == 1 { "│" } else { "─" }.into();
+                }
+            }
+        }
         restore_mode_bar(&mut frame, mode_bar, mode_bar_cells.as_deref());
         let mut occlusion = crate::kitty_graphics::surface::Occlusion::default();
         let has_selection = self

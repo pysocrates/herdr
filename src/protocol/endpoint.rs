@@ -151,6 +151,7 @@ impl EndpointServerWelcome {
                 PRESENTATION_EFFECTS_FENCE_CAPABILITY.into(),
                 HEALTH_CHECK_CAPABILITY.into(),
                 AGENT_VIEW_PROJECTION_CAPABILITY.into(),
+                super::pane_dock::CAPABILITY.into(),
             ],
             error: None,
         }

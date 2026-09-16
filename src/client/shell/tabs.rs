@@ -12,6 +12,7 @@ pub(crate) fn render_tab_bar(
     tab_scroll: &mut usize,
     reveal_focused_tab: &mut bool,
     tab_drag_insert_index: Option<usize>,
+    hidden_tab_id: Option<&str>,
     hits: &mut ShellHitMap,
 ) {
     let palette = &config.palette;
@@ -19,7 +20,7 @@ pub(crate) fn render_tab_bar(
     let tabs = snapshot
         .tabs
         .iter()
-        .filter(|tab| Some(tab.workspace_id.as_str()) == snapshot.focused_workspace_id.as_deref())
+        .filter(|tab| Some(tab.workspace_id.as_str()) == snapshot.focused_workspace_id.as_deref() && Some(tab.tab_id.as_str()) != hidden_tab_id)
         .collect::<Vec<_>>();
     let desired_widths = tabs
         .iter()

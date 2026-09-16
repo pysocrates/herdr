@@ -309,6 +309,11 @@ impl ClientShellState {
         method: crate::api::schema::Method,
         outcome: &mut ClientShellInput,
     ) {
+        if let crate::api::schema::Method::PaneFocus(target) = &method {
+            if self.focus_sticky(&target.pane_id, outcome) {
+                return;
+            }
+        }
         self.push_endpoint_method_with_kind(method, PendingEndpointKind::Generic, outcome);
     }
 
@@ -561,6 +566,9 @@ impl ClientShellState {
             }
         }
         match pending.kind {
+            PendingEndpointKind::PersistentCreate { workspace_id, move_pane } => {
+                return self.complete_persistent_create(workspace_id, move_pane, result);
+            }
             PendingEndpointKind::Generic => {}
             PendingEndpointKind::PaneLinkResolve { .. } => unreachable!("handled above"),
             PendingEndpointKind::ProductAnnouncementDismiss { version, id } => {
@@ -956,7 +964,7 @@ impl ClientShellState {
                 let tabs = snapshot
                     .tabs
                     .iter()
-                    .filter(|tab| tab.workspace_id == focused_workspace)
+                    .filter(|tab| tab.workspace_id == focused_workspace && !self.persistent_tab_is_hidden(&tab.tab_id))
                     .collect::<Vec<_>>();
                 Some(Method::TabFocus(TabTarget {
                     tab_id: tabs.get(index)?.tab_id.clone(),
@@ -966,7 +974,7 @@ impl ClientShellState {
                 let tabs = snapshot
                     .tabs
                     .iter()
-                    .filter(|tab| tab.workspace_id == focused_workspace)
+                    .filter(|tab| tab.workspace_id == focused_workspace && !self.persistent_tab_is_hidden(&tab.tab_id))
                     .collect::<Vec<_>>();
                 let focused_tab = focused_tab?;
                 let current = tabs.iter().position(|tab| tab.tab_id == focused_tab)?;
@@ -984,7 +992,7 @@ impl ClientShellState {
                 let tabs = snapshot
                     .tabs
                     .iter()
-                    .filter(|tab| tab.workspace_id == focused_workspace)
+                    .filter(|tab| tab.workspace_id == focused_workspace && !self.persistent_tab_is_hidden(&tab.tab_id))
                     .collect::<Vec<_>>();
                 if tabs.len() <= 1 {
                     return None;

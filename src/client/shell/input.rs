@@ -966,6 +966,9 @@ impl ClientShellState {
     }
 
     pub(super) fn focused_pane_id(&self) -> Option<String> {
+        if let Some(pane) = self.sticky_focus() {
+            return Some(pane);
+        }
         self.snapshot
             .as_deref()
             .and_then(|snapshot| snapshot.focused_pane_id.clone())

@@ -50,9 +50,17 @@ impl ClientContextMenuOverlay {
                 source_pane_id,
                 has_manual_label,
                 right_click_passthrough,
+                sticky,
+                sticky_supported,
                 ..
             } => {
                 let mut items = vec![item("Rename pane", Action::RenamePane)];
+                if *sticky_supported {
+                    items.push(item(
+                        if *sticky { "Move to tabbed area" } else { "Move to persistent area" },
+                        Action::ToggleSticky,
+                    ));
+                }
                 if *has_manual_label {
                     items.push(item("Clear pane name", Action::ClearPaneName));
                 }
@@ -155,6 +163,8 @@ impl ClientShellState {
             .filter(|focused| focused != &pane_id);
         self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
             target: ClientContextMenuTarget::Pane {
+                sticky: self.pane_is_sticky(&pane_id),
+                sticky_supported: self.sticky_supported.contains(&self.active_endpoint_id),
                 pane_id,
                 workspace_id: pane.workspace_id.clone(),
                 source_pane_id,
@@ -380,6 +390,7 @@ impl ClientShellState {
 
         match action {
             ClientContextMenuAction::RenamePane => {
+                // Existing naming UI remains independent of sticky presentation.
                 let label = self.snapshot.as_deref().and_then(|snapshot| {
                     snapshot
                         .panes
@@ -393,6 +404,7 @@ impl ClientShellState {
                     target: ClientRenameTarget::Pane { pane_id },
                 }));
             }
+            ClientContextMenuAction::ToggleSticky => self.move_to_persistent_area(pane_id, outcome),
             ClientContextMenuAction::ClearPaneName => self.push_endpoint_method(
                 Method::PaneRename(PaneRenameParams {
                     pane_id,
@@ -407,7 +419,7 @@ impl ClientShellState {
                             pane_id: None,
                             direction: None,
                             source_pane_id: Some(source_pane_id.clone()),
-                            target_pane_id: Some(pane_id),
+                            target_pane_id: Some(pane_id.clone()),
                         }),
                         outcome,
                     );
@@ -423,7 +435,7 @@ impl ClientShellState {
                 self.push_endpoint_method(
                     Method::PaneSplit(PaneSplitParams {
                         workspace_id: Some(workspace_id),
-                        target_pane_id: Some(pane_id),
+                        target_pane_id: Some(pane_id.clone()),
                         direction: if action == ClientContextMenuAction::SplitRight {
                             SplitDirection::Right
                         } else {
@@ -431,7 +443,7 @@ impl ClientShellState {
                         },
                         ratio: None,
                         cwd: None,
-                        focus: true,
+                        focus: !self.pane_is_sticky(&pane_id),
                         right_click: Default::default(),
                         env: Default::default(),
                     }),

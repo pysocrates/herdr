@@ -50,9 +50,7 @@ use crate::protocol::{
 use crate::server::client_accept::{
     accept_pending_client_connections, reject_pending_client_connections,
 };
-use crate::server::client_shell::{
-    render_pane_surface as render_client_shell_pane_surface, snapshot as client_shell_snapshot,
-};
+use crate::server::client_shell::snapshot as client_shell_snapshot;
 use crate::server::client_transport::ServerEvent;
 use crate::server::clients::{
     latest_shell_client, render_targets, terminal_stream_client_ids, ClientConnection,
@@ -76,6 +74,7 @@ mod client_views;
 mod endpoint_requests;
 mod lifecycle;
 mod notifications;
+mod pane_dock;
 mod pane_graphics;
 mod render;
 mod retained_surface;
@@ -2394,6 +2393,7 @@ impl HeadlessServer {
                 client.host_mouse_capture_active = None;
                 true
             }
+            ServerEvent::ClientPaneDock { client_id, dock } => self.set_pane_dock(client_id, dock),
             ServerEvent::ClientShellPresentationSync { client_id, token } => {
                 let Some(client) = self.clients.get_mut(&client_id) else {
                     return false;

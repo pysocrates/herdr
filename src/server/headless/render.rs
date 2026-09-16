@@ -22,7 +22,9 @@ impl HeadlessServer {
             .get(target.workspace_index)?
             .tabs
             .get(target.tab_index)?;
-        let pane_id = tab.layout.focused();
+        let pane_id = self
+            .dock_focus(client_id)
+            .unwrap_or_else(|| tab.layout.focused());
         self.app
             .state
             .runtime_for_pane_in_workspace(
@@ -246,6 +248,7 @@ impl HeadlessServer {
                 } else {
                     pane_ids.extend(tab.layout.pane_ids());
                 }
+                pane_ids.extend(self.docked_panes(client_id));
                 if self.popup_owner_tab_id == self.shell_tab_id_for_client(client_id) {
                     if let Some(popup) = &self.app.state.popup_pane {
                         pane_ids.insert(popup.pane_id);
@@ -368,7 +371,8 @@ impl HeadlessServer {
             else {
                 return false;
             };
-            tab.panes.contains_key(&pane_id) && (!tab.zoomed || tab.layout.focused() == pane_id)
+            (tab.panes.contains_key(&pane_id) && (!tab.zoomed || tab.layout.focused() == pane_id))
+                || self.docked_panes(client_id).contains(&pane_id)
         })
     }
 
@@ -441,17 +445,20 @@ impl HeadlessServer {
                 });
             if changed {
                 if let Some(target) = self.shell_target_for_client(*client_id) {
-                    crate::ui::resize_tab_surface(
+                    crate::ui::pane_dock::compute_docked_surface(
                         &self.app.state,
                         &self.app.terminal_runtimes,
-                        target.workspace_index,
-                        target.tab_index,
+                        Some(target),
                         Rect::new(0, 0, *cols, *rows),
+                        true,
                         if cell_size.is_known() {
                             *cell_size
                         } else {
                             crate::kitty_graphics::HostCellSize::default()
                         },
+                        &self.docked_panes(*client_id),
+                        self.dock_focus(*client_id),
+                        self.persistent_target(*client_id),
                     );
                 }
             }
@@ -472,6 +479,9 @@ impl HeadlessServer {
             let area = Rect::new(0, 0, cols, rows);
             let shell_target = self.shell_target_for_client(client_id);
             let shell_tab_id = self.shell_tab_id_for_client(client_id);
+            let docked = self.docked_panes(client_id);
+            let dock_focus = self.dock_focus(client_id);
+            let persistent = self.persistent_target(client_id);
             let shell_shows_popup = shell_tab_id.as_deref() == self.popup_owner_tab_id.as_deref();
             let mut shell_projection_revision = 0;
             if matches!(mode, ClientConnectionMode::ClientShell) {
@@ -480,6 +490,9 @@ impl HeadlessServer {
                     .get(&client_id)
                     .and_then(|client| client.shell_location.clone());
                 let agent_view = self.app.state.agent_view_override.clone();
+                let dock_focus_id = shell_target.and_then(|target| {
+                    dock_focus.and_then(|id| self.app.public_pane_id(target.workspace_index, id))
+                });
                 let Some(client) = self.clients.get_mut(&client_id) else {
                     continue;
                 };
@@ -496,6 +509,15 @@ impl HeadlessServer {
                     self.server_config_diagnostic_without_keybindings.clone()
                 };
                 candidate.revision = client.shell_projection_revision;
+                if let Some(id) = dock_focus_id {
+                    candidate.focused_pane_id = Some(id.clone());
+                    for pane in &mut candidate.panes {
+                        pane.focused = pane.pane_id == id;
+                    }
+                    for agent in &mut candidate.agents {
+                        agent.focused = agent.pane_id == id;
+                    }
+                }
                 if client.shell_snapshot.as_ref() != Some(&candidate)
                     || client.shell_agent_view != agent_view
                 {
@@ -589,7 +611,7 @@ impl HeadlessServer {
                         popup,
                         graphics,
                         graphics_delivery: next_graphics_delivery,
-                    } = render_client_shell_pane_surface(
+                    } = crate::server::client_shell::render_pane_surface_with_dock(
                         &mut self.app,
                         shell_target,
                         area,
@@ -598,6 +620,9 @@ impl HeadlessServer {
                         render_cell_size,
                         &shell_graphics_delivery,
                         client_id,
+                        &docked,
+                        dock_focus,
+                        persistent,
                     );
                     crate::render_prof::duration_since(
                         "full_render.render_tab_surface_virtual",

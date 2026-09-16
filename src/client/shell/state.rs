@@ -241,6 +241,7 @@ pub(super) struct WorkspaceHit {
 
 #[derive(Debug)]
 pub(crate) enum ClientShellAction {
+    PaneDock { endpoint_id: ClientEndpointId, dock: crate::protocol::pane_dock::PaneDock },
     Endpoint {
         endpoint_id: ClientEndpointId,
         boot_id: String,
@@ -510,6 +511,7 @@ pub(super) struct ClientWorktreeRemoveOverlay {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ClientContextMenuAction {
+    ToggleSticky,
     Rename,
     Close,
     NewWorktree,
@@ -546,6 +548,8 @@ pub(super) enum ClientContextMenuTarget {
         source_pane_id: Option<String>,
         has_manual_label: bool,
         right_click_passthrough: bool,
+        sticky: bool,
+        sticky_supported: bool,
     },
 }
 
@@ -615,6 +619,7 @@ impl ClientShellOverlay {
 
 #[derive(Debug)]
 pub(super) enum PendingEndpointKind {
+    PersistentCreate { workspace_id: String, move_pane: Option<String> },
     Generic,
     ProductAnnouncementDismiss {
         version: String,
@@ -844,6 +849,10 @@ pub(super) struct ClientCopyModeState {
 }
 
 pub(crate) struct ClientShellState {
+    pub(super) sticky: HashMap<ClientEndpointId, crate::protocol::pane_dock::PaneDock>,
+    pub(super) sticky_supported: HashSet<ClientEndpointId>,
+    pub(super) persistent_hits: persistent_chrome::PersistentHits,
+    pub(super) persistent_drag: bool,
     pub(super) config: ClientShellConfig,
     pub(super) snapshot: Option<Box<ClientShellSnapshot>>,
     pub(super) active_snapshot_generation: Option<u64>,
@@ -1008,6 +1017,10 @@ impl ClientShellState {
         }
         Self {
             config,
+            sticky: HashMap::new(),
+            sticky_supported: HashSet::new(),
+            persistent_hits: Default::default(),
+            persistent_drag: false,
             snapshot: None,
             active_snapshot_generation: None,
             pane_surface_generation: None,
@@ -1274,6 +1287,7 @@ impl ClientShellState {
         mut snapshot: Box<ClientShellSnapshot>,
         generation: Option<u64>,
     ) {
+        self.reconcile_sticky(&snapshot);
         snapshot
             .commands
             .retain(|command| command.action != crate::protocol::ClientShellCommandAction::Unknown);

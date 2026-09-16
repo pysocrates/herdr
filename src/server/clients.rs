@@ -175,6 +175,7 @@ pub(crate) struct ClientConnection {
     pub(crate) staged_clipboard_files: Vec<PathBuf>,
     /// Connection-local workspace and tab projection for a client-owned shell.
     pub(crate) shell_location: Option<ClientShellLocation>,
+    pub(crate) pane_dock: crate::protocol::pane_dock::PaneDock,
     /// Last coherent shell replacement sent to this client.
     pub(crate) shell_snapshot: Option<crate::protocol::ClientShellSnapshot>,
     /// View policy paired with the last coherent shell replacement.
@@ -245,6 +246,7 @@ impl ClientConnection {
             shell_held_inputs: HashMap::new(),
             staged_clipboard_files: Vec::new(),
             shell_location: None,
+            pane_dock: Default::default(),
             shell_snapshot: None,
             shell_agent_view: None,
             shell_projection_revision: 0,

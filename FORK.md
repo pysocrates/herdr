@@ -28,17 +28,32 @@ mise exec -- cargo build --locked -j 3
 
 The area uses a backing tab named `Persistent`. That tab is hidden from the tab
 bar while the area is enabled and is available as a normal tab when collapsed.
-Presentation settings are client-local and workspace-scoped, not a promise of
-cross-restart layout persistence. The server and client must support the optional
-pane-dock capability; frozen generation-1 endpoint codecs are unchanged.
+Presentation settings are client-local and workspace-scoped. The enabled state,
+placement, and area size are saved locally and restored on reconnect or restart,
+using a durable backing-tab identity rather than a potentially recycled public
+number. The normal session snapshot retains the backing tab and its split tree.
+The server and client must support the optional pane-dock capability; frozen
+generation-1 endpoint codecs are unchanged.
 
 ## Verification and limits
+
+See [the fix report](FIX_REPORT.md) for resizing, restart restoration, selection
+scrolling, test results, and the migration limits for older persistent tabs.
 
 Targeted geometry, menu, cleanup, cross-tab focus, and server live-pane tests pass.
 A real-PTY smoke test also checks creation, tab switching, correctly targeted
 terminal input without tab navigation, right/bottom placement, and hide/reopen.
 
-This is an experimental feature, not an upstream release. Divider dragging,
-move-last-pane behavior, advanced mouse/clipboard operations, reconnects, and
-multi-client geometry need more exhaustive regression coverage. No upstream pull
-request is implied by this fork.
+Real-PTY regression checks additionally cover both persistent split directions,
+the outer divider, ordinary tabbed splits while docked, client restart, and full
+server restart (including bottom placement and the original two-pane backing tab).
+After building, run any check with:
+
+```sh
+uv run --with pyte python scripts/check_persistent_regressions.py resize
+# Other modes: resize-right, resize-main, client-restart, server-restart
+```
+
+This is an experimental feature, not an upstream release. Move-last-pane behavior,
+advanced mouse/clipboard operations, and multi-client geometry need more exhaustive
+coverage. No upstream pull request is implied by this fork.

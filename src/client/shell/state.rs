@@ -868,6 +868,9 @@ pub(super) struct ClientCopyModeState {
 
 pub(crate) struct ClientShellState {
     pub(super) machine_diagnostics: super::machine_diagnostics::MachineDiagnostics,
+    pub(super) persistent_identities:
+        HashMap<ClientEndpointId, (String, u64, u64, HashMap<String, String>)>,
+    pub(super) sticky_replayed: HashMap<ClientEndpointId, crate::protocol::pane_dock::PaneDock>,
     pub(super) sticky: HashMap<ClientEndpointId, crate::protocol::pane_dock::PaneDock>,
     pub(super) sticky_supported: HashSet<ClientEndpointId>,
     pub(super) persistent_hits: persistent_chrome::PersistentHits,
@@ -1047,6 +1050,8 @@ impl ClientShellState {
             machine_diagnostics: Default::default(),
             config,
             sticky: HashMap::new(),
+            persistent_identities: HashMap::new(),
+            sticky_replayed: HashMap::new(),
             sticky_supported: HashSet::new(),
             persistent_hits: Default::default(),
             persistent_drag: false,
@@ -1458,8 +1463,13 @@ impl ClientShellState {
         {
             self.reveal_focused_tab = true;
         }
+        // Persistent input focus is client-local; the snapshot keeps the ordinary
+        // tab selected. Use the incoming snapshot to validate that local focus.
+        let persistent_focus = self.sticky_focus_for_snapshot(&snapshot);
+        let focused_pane = persistent_focus
+            .as_deref()
+            .or(snapshot.focused_pane_id.as_deref());
         let selection_focus_lost = if let Some(gesture) = self.word_selection_gesture.as_mut() {
-            let focused_pane = snapshot.focused_pane_id.as_deref();
             // Remember confirmed focus across intermediate snapshots with no
             // focused pane, without rejecting the gesture's in-flight focus request.
             gesture.focus_confirmed |= focused_pane == Some(gesture.pane_id.as_str());
@@ -1471,7 +1481,7 @@ impl ClientShellState {
                     && focused_pane.is_some_and(|pane_id| pane_id != gesture.pane_id))
         } else {
             self.selection.as_ref().is_some_and(|selection| {
-                snapshot.focused_pane_id.as_deref() != Some(selection.pane_id.as_str())
+                focused_pane != Some(selection.pane_id.as_str())
                     || !snapshot
                         .panes
                         .iter()
@@ -1495,7 +1505,7 @@ impl ClientShellState {
                 .panes
                 .iter()
                 .any(|pane| pane.pane_id == copy_pane_id);
-            let pane_focused = snapshot.focused_pane_id.as_deref() == Some(copy_pane_id.as_str());
+            let pane_focused = focused_pane == Some(copy_pane_id.as_str());
             if !pane_exists {
                 self.copy_mode = None;
                 self.reset_copy_pipeline();

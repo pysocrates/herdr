@@ -433,7 +433,10 @@ impl ClientShellState {
             return None;
         }
         Some(
-            snapshot.focused_tab_id.as_deref() == Some(tab_id)
+            self.persistent_tab_at((hit.area.x, hit.area.y))
+                .or_else(|| snapshot.focused_tab_id.clone())
+                .as_deref()
+                == Some(tab_id)
                 && pane_surface_topology_signature(surface) == hit.topology_signature,
         )
     }
@@ -652,7 +655,9 @@ impl ClientShellState {
     }
 
     pub(super) fn handle_mouse(&mut self, mouse: MouseEvent, outcome: &mut ClientShellInput) {
-        if self.config.mouse_capture && self.handle_persistent_mouse(mouse, outcome) { return; }
+        if self.config.mouse_capture && self.handle_persistent_mouse(mouse, outcome) {
+            return;
+        }
         self.update_link_hover(mouse, outcome);
         let point = (mouse.column, mouse.row);
         if self.mode == ClientShellMode::Navigate
@@ -2176,11 +2181,11 @@ impl ClientShellState {
                     .find(|hit| super::contains(hit.hit_rect, point))
                     .cloned();
                 if let Some(hit) = split_hit {
-                    let Some(tab_id) = self.persistent_tab_at(point).or_else(|| self
-                        .snapshot
-                        .as_deref()
-                        .and_then(|snapshot| snapshot.focused_tab_id.clone()))
-                    else {
+                    let Some(tab_id) = self.persistent_tab_at(point).or_else(|| {
+                        self.snapshot
+                            .as_deref()
+                            .and_then(|snapshot| snapshot.focused_tab_id.clone())
+                    }) else {
                         return;
                     };
                     let pointer = match hit.direction {

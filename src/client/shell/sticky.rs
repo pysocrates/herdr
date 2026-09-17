@@ -7,6 +7,7 @@ use crate::protocol::pane_dock::MAX_PANES;
 
 impl ClientShellState {
     pub(crate) fn set_sticky_supported(&mut self, endpoint: &ClientEndpointId, supported: bool) {
+        self.sticky_replayed.remove(endpoint);
         if supported {
             self.sticky_supported.insert(endpoint.clone());
         } else {
@@ -17,7 +18,13 @@ impl ClientShellState {
 
     pub(super) fn pane_is_sticky(&self, pane: &str) -> bool {
         if let Some(area) = self.persistent_area() {
-            return area.enabled && self.snapshot.as_deref().is_some_and(|snapshot| snapshot.panes.iter().any(|p| p.pane_id == pane && p.tab_id == area.tab_id));
+            return area.enabled
+                && self.snapshot.as_deref().is_some_and(|snapshot| {
+                    snapshot
+                        .panes
+                        .iter()
+                        .any(|p| p.pane_id == pane && p.tab_id == area.tab_id)
+                });
         }
         self.sticky
             .get(&self.active_endpoint_id)
@@ -29,7 +36,10 @@ impl ClientShellState {
             })
     }
 
-    pub(super) fn send_sticky(&self, outcome: &mut ClientShellInput) {
+    pub(super) fn send_sticky(&mut self, outcome: &mut ClientShellInput) {
+        if !self.persistent_drag {
+            self.persist_persistent_areas(outcome);
+        }
         let Some(dock) = self.sticky.get(&self.active_endpoint_id) else {
             return;
         };
@@ -106,7 +116,13 @@ impl ClientShellState {
     }
 
     pub(super) fn sticky_focus(&self) -> Option<String> {
-        let snapshot = self.snapshot.as_deref()?;
+        self.sticky_focus_for_snapshot(self.snapshot.as_deref()?)
+    }
+
+    pub(super) fn sticky_focus_for_snapshot(
+        &self,
+        snapshot: &ClientShellSnapshot,
+    ) -> Option<String> {
         let dock = self.sticky.get(&self.active_endpoint_id)?;
         let (tab, pane) = dock.focus.as_ref()?;
         (dock.boot_id == snapshot.boot_id
@@ -125,7 +141,16 @@ impl ClientShellState {
                 return;
             }
             if !dock.areas.is_empty() {
-                dock.pane_ids = snapshot.panes.iter().filter(|pane| dock.areas.get(&pane.workspace_id).is_some_and(|area| area.enabled && area.tab_id == pane.tab_id)).map(|pane| pane.pane_id.clone()).collect();
+                dock.pane_ids = snapshot
+                    .panes
+                    .iter()
+                    .filter(|pane| {
+                        dock.areas
+                            .get(&pane.workspace_id)
+                            .is_some_and(|area| area.enabled && area.tab_id == pane.tab_id)
+                    })
+                    .map(|pane| pane.pane_id.clone())
+                    .collect();
             }
             dock.pane_ids
                 .retain(|id| snapshot.panes.iter().any(|pane| &pane.pane_id == id));

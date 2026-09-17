@@ -59,19 +59,47 @@ impl ClientShellState {
     pub(super) fn persistent_tab_at(&self, point: (u16, u16)) -> Option<String> {
         let (cols, rows) = self.last_composed_size?;
         let area = self.persistent_area().filter(|area| area.enabled)?;
-        contains(area.settings.layout(self.layout(cols, rows).pane_surface).persistent, point).then(|| area.tab_id.clone())
+        contains(
+            area.settings
+                .layout(self.layout(cols, rows).pane_surface)
+                .persistent,
+            point,
+        )
+        .then(|| area.tab_id.clone())
     }
 
-    pub(super) fn resize_persistent_area(&mut self, point: (u16, u16), outcome: &mut ClientShellInput) {
-        let Some((cols, rows)) = self.last_composed_size else { return; };
+    pub(super) fn resize_persistent_area(
+        &mut self,
+        point: (u16, u16),
+        outcome: &mut ClientShellInput,
+    ) {
+        let Some((cols, rows)) = self.last_composed_size else {
+            return;
+        };
         let surface = self.layout(cols, rows).pane_surface;
-        let Some(workspace) = self.snapshot.as_deref().and_then(|s| s.focused_workspace_id.clone()) else { return; };
-        if let Some(area) = self.sticky.get_mut(&self.active_endpoint_id).and_then(|dock| dock.areas.get_mut(&workspace)) {
+        let Some(workspace) = self
+            .snapshot
+            .as_deref()
+            .and_then(|s| s.focused_workspace_id.clone())
+        else {
+            return;
+        };
+        if let Some(area) = self
+            .sticky
+            .get_mut(&self.active_endpoint_id)
+            .and_then(|dock| dock.areas.get_mut(&workspace))
+        {
             let (span, remaining) = match area.settings.placement {
-                crate::protocol::persistent_area::DockPlacement::Right => (surface.width, surface.right().saturating_sub(point.0 + 1)),
-                crate::protocol::persistent_area::DockPlacement::Bottom => (surface.height, surface.bottom().saturating_sub(point.1 + 1)),
+                crate::protocol::persistent_area::DockPlacement::Right => {
+                    (surface.width, surface.right().saturating_sub(point.0 + 1))
+                }
+                crate::protocol::persistent_area::DockPlacement::Bottom => {
+                    (surface.height, surface.bottom().saturating_sub(point.1 + 1))
+                }
             };
-            if span > 1 { area.settings.set_percent((u32::from(remaining) * 100 / u32::from(span - 1)).min(100) as u16); }
+            if span > 1 {
+                area.settings.set_percent((u32::from(remaining) * 100 / u32::from(span - 1)).min(100) as u16);
+            }
         }
         self.send_sticky(outcome);
     }
@@ -108,6 +136,7 @@ impl ClientShellState {
             }
             MouseEventKind::Up(MouseButton::Left) if self.persistent_drag => {
                 self.persistent_drag = false;
+                self.resize_persistent_area(point, outcome);
                 return true;
             }
             _ => {}

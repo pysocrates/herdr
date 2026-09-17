@@ -1,6 +1,37 @@
 //! Connection-local presentation only: terminals and shared tab layouts never move.
 use super::*;
 
+pub(super) fn snapshot_with_tab_identities(
+    app: &crate::app::App,
+    snapshot: &protocol::ClientShellSnapshot,
+) -> serde_json::Result<protocol::ServerMessage> {
+    #[derive(serde::Serialize)]
+    struct Snapshot<'a> {
+        #[serde(flatten)]
+        core: &'a protocol::ClientShellSnapshot,
+        #[serde(flatten)]
+        identities: protocol::pane_dock::TabIdentities,
+    }
+    let persistent_tab_ids = snapshot
+        .tabs
+        .iter()
+        .filter_map(|tab| {
+            let (ws, index) = app.parse_tab_id(&tab.tab_id)?;
+            Some((
+                tab.tab_id.clone(),
+                app.state.workspaces[ws].tabs[index].persistent_id.clone(),
+            ))
+        })
+        .collect();
+    Ok(protocol::ServerMessage::EndpointControl {
+        kind: protocol::endpoint::ENDPOINT_SNAPSHOT_KIND.into(),
+        data: serde_json::to_string(&Snapshot {
+            core: snapshot,
+            identities: protocol::pane_dock::TabIdentities { persistent_tab_ids },
+        })?,
+    })
+}
+
 impl HeadlessServer {
     pub(super) fn set_pane_dock(
         &mut self,
@@ -16,16 +47,22 @@ impl HeadlessServer {
         {
             return false;
         }
-        if dock.areas.len() > 128 { return false; }
+        if dock.areas.len() > 128 {
+            return false;
+        }
         dock.areas.retain(|workspace, area| {
-            self.app.parse_tab_id(&area.tab_id).is_some_and(|(ws, _)| self.app.public_workspace_id(ws) == *workspace)
+            self.app
+                .parse_tab_id(&area.tab_id)
+                .is_some_and(|(ws, _)| self.app.public_workspace_id(ws) == *workspace)
         });
         if !dock.areas.is_empty() {
             dock.pane_ids.clear();
             for area in dock.areas.values().filter(|area| area.enabled) {
                 if let Some((ws, tab)) = self.app.parse_tab_id(&area.tab_id) {
                     for pane in self.app.state.workspaces[ws].tabs[tab].layout.pane_ids() {
-                        if let Some(id) = self.app.public_pane_id(ws, pane) { dock.pane_ids.push(id); }
+                        if let Some(id) = self.app.public_pane_id(ws, pane) {
+                            dock.pane_ids.push(id);
+                        }
                     }
                 }
             }
@@ -49,31 +86,58 @@ impl HeadlessServer {
         if client.pane_dock == dock {
             return false;
         }
-        let geometry_changed = client.pane_dock.pane_ids != dock.pane_ids || client.pane_dock.areas != dock.areas;
+        let geometry_changed =
+            client.pane_dock.pane_ids != dock.pane_ids || client.pane_dock.areas != dock.areas;
         client.pane_dock = dock;
         client.shell_snapshot = None;
         client.request_recompute();
-        if geometry_changed { self.apply_shell_tab_geometry(client_id, false); }
+        if geometry_changed {
+            self.apply_shell_tab_geometry(client_id, false);
+        }
         true
     }
 
     /// Only these additional, visible sources widen output fanout. Unrelated hidden
     /// tabs retain the existing early exit. Work is O(sticky panes), never all terminals.
-    pub(super) fn persistent_target(&self, client_id: u64) -> Option<(crate::ui::TabSurfaceTarget, protocol::persistent_area::PersistentAreaSettings)> {
+    pub(super) fn persistent_target(
+        &self,
+        client_id: u64,
+    ) -> Option<(
+        crate::ui::TabSurfaceTarget,
+        protocol::persistent_area::PersistentAreaSettings,
+    )> {
         let client = self.clients.get(&client_id)?;
         let target = self.shell_target_for_client(client_id)?;
         client.pane_dock.areas.values().find_map(|area| {
-            if !area.enabled { return None; }
+            if !area.enabled {
+                return None;
+            }
             let (workspace_index, tab_index) = self.app.parse_tab_id(&area.tab_id)?;
-            (workspace_index == target.workspace_index && tab_index != target.tab_index).then_some((crate::ui::TabSurfaceTarget { workspace_index, tab_index }, area.settings))
+            (workspace_index == target.workspace_index && tab_index != target.tab_index).then_some(
+                (
+                    crate::ui::TabSurfaceTarget {
+                        workspace_index,
+                        tab_index,
+                    },
+                    area.settings,
+                ),
+            )
         })
     }
 
     pub(super) fn docked_panes(&self, client_id: u64) -> Vec<crate::layout::PaneId> {
         if let Some((target, _)) = self.persistent_target(client_id) {
-            return self.app.state.workspaces[target.workspace_index].tabs[target.tab_index].layout.pane_ids();
+            return self.app.state.workspaces[target.workspace_index].tabs[target.tab_index]
+                .layout
+                .pane_ids();
         }
-        if self.clients.get(&client_id).is_some_and(|client| !client.pane_dock.areas.is_empty()) { return Vec::new(); }
+        if self
+            .clients
+            .get(&client_id)
+            .is_some_and(|client| !client.pane_dock.areas.is_empty())
+        {
+            return Vec::new();
+        }
         let Some(client) = self.clients.get(&client_id) else {
             return Vec::new();
         };

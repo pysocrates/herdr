@@ -5,6 +5,9 @@ use crate::protocol::persistent_area::DockPlacement;
 
 impl ClientShellState {
     pub(super) fn persistent_area(&self) -> Option<&WorkspaceArea> {
+        if !self.sticky_supported.contains(&self.active_endpoint_id) {
+            return None;
+        }
         let snapshot = self.snapshot.as_deref()?;
         let dock = self.sticky.get(&self.active_endpoint_id)?;
         if dock.boot_id != snapshot.boot_id {
@@ -152,6 +155,7 @@ impl ClientShellState {
             endpoint_id: self.active_endpoint_id.clone(),
             dock: dock.clone(),
         }];
+        self.persist_persistent_areas(&mut ClientShellInput::default());
         if let Some(pane_id) = move_pane {
             let mut outcome = ClientShellInput::default();
             self.push_endpoint_method(

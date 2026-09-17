@@ -9,10 +9,16 @@ pub struct WorkspaceArea {
     pub settings: super::persistent_area::PersistentAreaSettings,
 }
 
-
 pub const CAPABILITY: &str = "pane_dock_v1";
 pub const KIND: &str = "shell.pane-dock.v1";
 pub const MAX_PANES: usize = 32;
+
+/// Optional JSON snapshot extension. Kept outside the frozen binary snapshot.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct TabIdentities {
+    #[serde(default)]
+    pub persistent_tab_ids: std::collections::HashMap<String, String>,
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaneDock {

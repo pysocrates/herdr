@@ -358,6 +358,7 @@ mod tests {
                 PRESENTATION_EFFECTS_FENCE_CAPABILITY.to_string(),
                 HEALTH_CHECK_CAPABILITY.to_string(),
                 AGENT_VIEW_PROJECTION_CAPABILITY.to_string(),
+                super::super::pane_dock::CAPABILITY.to_string(),
             ]
         );
     }

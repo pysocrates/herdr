@@ -2065,7 +2065,7 @@ impl HeadlessServer {
                     None => None,
                 };
                 let snapshot_message =
-                    match crate::protocol::endpoint::snapshot_message(&seed_snapshot) {
+                    match pane_dock::snapshot_with_tab_identities(&self.app, &seed_snapshot) {
                         Ok(message) => message,
                         Err(err) => {
                             warn!(client_id, err = %err, "failed to encode endpoint snapshot");

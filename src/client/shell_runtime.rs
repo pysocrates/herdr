@@ -15,9 +15,13 @@ pub(super) fn dispatch_client_shell_actions(
             shell::ClientShellAction::PaneDock { endpoint_id, dock } => {
                 if endpoints.active_id() == &endpoint_id && endpoints.active_surface_available() {
                     if let Ok(data) = serde_json::to_string(&dock) {
-                        endpoints.send_to(&endpoint_id, &ClientMessage::EndpointControl {
-                            kind: crate::protocol::pane_dock::KIND.into(), data,
-                        });
+                        endpoints.send_to(
+                            &endpoint_id,
+                            &ClientMessage::EndpointControl {
+                                kind: crate::protocol::pane_dock::KIND.into(),
+                                data,
+                            },
+                        );
                         repaint = true;
                     }
                 }
@@ -425,6 +429,11 @@ pub(super) fn complete_endpoint_activation(
 
     let _ = pending.take();
     endpoints.unfreeze_input();
+    if let Some(shell) = state.shell.as_mut() {
+        if let Some(replay) = shell.persistent_replay() {
+            endpoints.send_to(&endpoints.active_id().clone(), &replay);
+        }
+    }
     let successor = match completion {
         endpoint::ActivationCompletion::RestoredSource {
             error,
@@ -646,6 +655,9 @@ pub(super) fn install_client_shell_snapshot(
         }
         if project_snapshot {
             shell.set_endpoint_snapshot_for_generation(endpoint_id, generation, snapshot);
+            if let Some(replay) = shell.persistent_replay() {
+                endpoints.send_to(endpoint_id, &replay);
+            }
         } else {
             shell.cache_endpoint_snapshot_inactive_for_generation(
                 endpoint_id,

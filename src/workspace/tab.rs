@@ -13,6 +13,12 @@ use crate::terminal::{TerminalId, TerminalRuntime, TerminalRuntimeRegistry, Term
 
 pub(crate) type DetachedPane = (PaneId, TerminalId);
 
+pub(crate) fn new_persistent_id() -> String {
+    // Use the same process-independent, time + atomic-counter allocator as runtimes,
+    // but keep this identity in the structural session, never in the runtime registry.
+    format!("tab_{}", TerminalId::alloc())
+}
+
 pub(crate) struct MovedPane {
     pub pane_id: PaneId,
     pub pane_state: PaneState,
@@ -36,6 +42,8 @@ enum SplitCommand<'a> {
 }
 
 pub struct Tab {
+    /// Opaque durable identity; unlike public numbers this is never reused by a new session.
+    pub persistent_id: String,
     pub custom_name: Option<String>,
     pub number: usize,
     /// Identity source for this tab's pane tree.
@@ -180,6 +188,7 @@ impl Tab {
 
         Ok((
             Self {
+                persistent_id: new_persistent_id(),
                 custom_name: None,
                 number,
                 root_pane: root_id,
@@ -443,6 +452,7 @@ impl Tab {
         let pane_id = moved.pane_id;
         panes.insert(pane_id, moved.pane_state);
         Self {
+            persistent_id: new_persistent_id(),
             custom_name,
             number,
             root_pane: pane_id,

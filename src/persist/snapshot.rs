@@ -86,6 +86,8 @@ struct LegacyWorkspaceSnapshot {
 #[derive(Serialize, Deserialize)]
 pub struct TabSnapshot {
     #[serde(default)]
+    pub persistent_id: Option<String>,
+    #[serde(default)]
     pub custom_name: Option<String>,
     pub layout: LayoutSnapshot,
     pub panes: HashMap<u32, PaneSnapshot>,
@@ -147,6 +149,7 @@ impl From<LegacyWorkspaceSnapshot> for WorkspaceSnapshot {
     fn from(snap: LegacyWorkspaceSnapshot) -> Self {
         let identity_cwd = legacy_identity_cwd(&snap);
         let tab = TabSnapshot {
+            persistent_id: None,
             custom_name: None,
             layout: snap.layout,
             panes: snap.panes,
@@ -375,6 +378,7 @@ fn capture_tab(
         );
     }
     TabSnapshot {
+        persistent_id: Some(tab.persistent_id.clone()),
         custom_name: tab.custom_name.clone(),
         layout: capture_node(tab.layout.root()),
         panes,
@@ -714,6 +718,7 @@ mod tests {
                 public_tab_numbers: vec![1],
                 next_public_tab_number: 2,
                 tabs: vec![TabSnapshot {
+                    persistent_id: None,
                     custom_name: Some("api".to_string()),
                     layout: LayoutSnapshot::Split {
                         direction: DirectionSnapshot::Horizontal,
@@ -1379,6 +1384,7 @@ mod tests {
                 public_tab_numbers: Vec::new(),
                 next_public_tab_number: 0,
                 tabs: vec![TabSnapshot {
+                    persistent_id: None,
                     custom_name: None,
                     layout: LayoutSnapshot::Split {
                         direction: DirectionSnapshot::Horizontal,

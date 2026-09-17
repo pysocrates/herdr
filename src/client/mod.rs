@@ -1962,6 +1962,18 @@ async fn run_client_loop(
                             }
                         };
                         let projection_pending = activation_message;
+                        if let Some(shell) = state.shell.as_mut() {
+                            if let Ok(identities) =
+                                serde_json::from_str::<protocol::pane_dock::TabIdentities>(&data)
+                            {
+                                shell.accept_persistent_identities(
+                                    &endpoint_id,
+                                    generation,
+                                    &snapshot,
+                                    identities,
+                                );
+                            }
+                        }
                         let activation_progress = activation_message
                             .then(|| {
                                 pending_activation.as_mut().map(|pending| {

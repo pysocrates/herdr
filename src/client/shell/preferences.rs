@@ -7,6 +7,14 @@ static NEXT_TEMP_FILE: AtomicU64 = AtomicU64::new(1);
 
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+pub(super) struct PersistentAreaPreference {
+    pub endpoint: String,
+    pub workspace_id: String,
+    pub persistent_tab_id: String,
+    pub area: crate::protocol::pane_dock::WorkspaceArea,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(super) struct ClientRemoteCollapsedGroups {
     pub(super) profile_id: String,
@@ -16,6 +24,8 @@ pub(super) struct ClientRemoteCollapsedGroups {
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub(super) struct ClientChromePreferences {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(super) persistent_areas: Vec<PersistentAreaPreference>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) sidebar_width: Option<u16>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
